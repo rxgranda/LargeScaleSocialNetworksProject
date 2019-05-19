@@ -28,7 +28,7 @@ object Main {
       attr match {
         case attr: Map[Long,Double]=>(id ,stringOf(attr))
 
-        case attr: UserPreferences=>(id ,stringOf(attr.preferences)+stringOf(attr.friendsPreferences))
+        case attr: UserPreferences=>(id ,"Self-Preference==> "+stringOf(attr.preferences)+"  --Neighbours-Preferences==> "++stringOf(attr.friendsPreferences))
         case _ => (id, attr)
       }
     }
@@ -244,7 +244,7 @@ object Main {
           }
           case _ => value
         }
-      } else {
+      } else {//Initial Message used for Transformation
         value match {
           case value: HashMap[Long, Double] => {
             val mapa = value.asInstanceOf[scala.collection.mutable.HashMap[Long, Double]]
@@ -264,7 +264,7 @@ object Main {
       tuple match {
 
         case (srcAttr: UserPreferences, dstAttr:UserPreferences)=> {
-          println("Tamanio "+srcAttr.friendsPreferences.size)
+          println("Tamanio "+dstAttr.friendsPreferences.size)
           if(srcAttr.friendsPreferences.size>0) {
 
           }
@@ -287,33 +287,7 @@ object Main {
       msg1+"&"+msg2
     }
 
-    def setMsg22(vertexId: VertexId, value: Object, message: String):Object = {
 
-      //print(message)
-      if (message != "") {
-        //var mapa = new scala.collection.mutable.HashMap[Long, Double]
-        value match {
-          case value: UserPreferences => {
-            var user = value.asInstanceOf[UserPreferences]
-            for (i <- message.split("&")) {
-              val data = i.split(":")
-              var friendMap = new HashMap[Long, Double]()
-              val numbers = data(1).split(",")
-              for (j: Int <- 0 until (numbers.length / 2)) {
-                val index = numbers(j * 2)
-                val freq = numbers(j * 2 + 1)
-                friendMap(index.toLong) = freq.toDouble
-              }
-              user.friendsPreferences(data(0).toLong) = friendMap
-
-            }
-            user.asInstanceOf[Object]
-          }
-          case _ => value
-        }
-      }
-      value
-    }
 
     def sendMsg22(triplet: EdgeTriplet[Object,String] ): Iterator[(VertexId,String)] = {
 
@@ -334,7 +308,7 @@ object Main {
         case _ => Iterator.empty
       }
     }
-    val userWithFriendPreferences: Graph[Object, String]= newGraph.pregel("",maxIterations = 1)(
+    val userWithFriendPreferences: Graph[Object, String]= newGraph.pregel("",maxIterations = 1,EdgeDirection.Out)(
       setMsg2, // Vertex Program
       sendMsg2,// vertex received msg
       mergeMsg2// Merge Message
@@ -342,8 +316,8 @@ object Main {
     printGraph(userWithFriendPreferences)
     println("============")
     println("Friend WithPreferences")
-    val userWithFriendPreferences2: Graph[Object, String]= userWithFriendPreferences.pregel("",maxIterations = 1)(
-      setMsg22, // Vertex Program
+    val userWithFriendPreferences2: Graph[Object, String]= userWithFriendPreferences.pregel("",maxIterations = 1,EdgeDirection.In)(
+      setMsg2, // Vertex Program
       sendMsg22,// vertex received msg
       mergeMsg2// Merge Message
     )
