@@ -3,13 +3,17 @@ package project
 
 import org.apache.spark.graphx.{VertexId, _}
 import org.apache.spark.sql.SparkSession
+import scala.collection.mutable.HashMap
 import org.apache.spark.rdd.RDD
 import scala.runtime.ScalaRunTime._
+import scala.util.parsing.json.JSONObject
+
 
 
 class VertexProperty()
 
 case class User(val places:Array[Double]) extends VertexProperty
+case class UserPreferences(var preferences:HashMap[Long, Double],var friendsPreferences:HashMap[Long,HashMap[Long, Double] ]) extends VertexProperty
 
 case class Location(val lat: String, val long: String) extends VertexProperty
 
@@ -23,6 +27,8 @@ object Main {
     g.vertices.map{ case (id, attr) => {
       attr match {
         case attr: Map[Long,Double]=>(id ,stringOf(attr))
+
+        case attr: UserPreferences=>(id ,stringOf(attr.preferences)+stringOf(attr.friendsPreferences))
         case _ => (id, attr)
       }
     }
@@ -127,33 +133,33 @@ object Main {
 
     //println("Mensajes")
     //    locations
-//    val messages = userMapsProperty.aggregateMessages[String](
-//      ctx =>{
-//        ctx.srcAttr match {
-//          case srcAttr : Location => {
-//            ctx.sendToDst(ctx.srcId+"")
-//          }
-//          case _=>null
-//        }
-//      },
-//      (a,b)=>a+","+b
-//    )
-//    //messages.foreach(println)
-//    val userPlacesInfo:Graph[Object,String] = userMapsProperty.outerJoinVertices(messages) {
-//      (id, origValue, msgValue ) => msgValue match {
-//        case Some(places:String) => {
-//          var mapa = new scala.collection.mutable.HashMap[Long, Double]
-//          for (i <- places.split(",")) {
-//            if (mapa.contains(i.toLong)) mapa(i.toLong) += 1.0
-//            else mapa(i.toLong) = 1.0
-//          }
-//          mapa
-//        }  // vertex received msg
-//        case None => origValue
-//      }
-//    }
-//    println("Grafo Agregado")
-//    printGraph(userPlacesInfo)
+    //    val messages = userMapsProperty.aggregateMessages[String](
+    //      ctx =>{
+    //        ctx.srcAttr match {
+    //          case srcAttr : Location => {
+    //            ctx.sendToDst(ctx.srcId+"")
+    //          }
+    //          case _=>null
+    //        }
+    //      },
+    //      (a,b)=>a+","+b
+    //    )
+    //    //messages.foreach(println)
+    //    val userPlacesInfo:Graph[Object,String] = userMapsProperty.outerJoinVertices(messages) {
+    //      (id, origValue, msgValue ) => msgValue match {
+    //        case Some(places:String) => {
+    //          var mapa = new scala.collection.mutable.HashMap[Long, Double]
+    //          for (i <- places.split(",")) {
+    //            if (mapa.contains(i.toLong)) mapa(i.toLong) += 1.0
+    //            else mapa(i.toLong) = 1.0
+    //          }
+    //          mapa
+    //        }  // vertex received msg
+    //        case None => origValue
+    //      }
+    //    }
+    //    println("Grafo Agregado")
+    //    printGraph(userPlacesInfo)
 
 
     def setMsg(vertexId: VertexId, value: Object, message: String) = {
@@ -212,8 +218,137 @@ object Main {
     println("Pregel sample -- Normalized")
     printGraph(newGraph)
 
+    def setMsg2(vertexId: VertexId, value: Object, message: String):Object = {
 
-    
+
+
+      if (message != "") {
+        println(vertexId.toString+" ===  "+message)
+        //var mapa = new scala.collection.mutable.HashMap[Long, Double]
+        value match {
+          case value: UserPreferences => {
+            var user = value.asInstanceOf[UserPreferences]
+            for (i <- message.split("&")) {
+              val data = i.split(":")
+              var friendMap = new HashMap[Long, Double]()
+              val numbers = data(1).split(",")
+              for (j: Int <- 0 until (numbers.length / 2)) {
+                val index = numbers(j * 2)
+                val freq = numbers(j * 2 + 1)
+                friendMap(index.toLong) = freq.toDouble
+              }
+              user.friendsPreferences(data(0).toLong) = friendMap
+
+            }
+            user.asInstanceOf[Object]
+          }
+          case _ => value
+        }
+      } else {
+        value match {
+          case value: HashMap[Long, Double] => {
+            val mapa = value.asInstanceOf[scala.collection.mutable.HashMap[Long, Double]]
+            var user = UserPreferences(mapa, new HashMap[Long, HashMap[Long, Double]]())
+            println("Attributo Transformado")
+            user
+          }
+          case _ => value
+        }
+      }
+    }
+
+    def sendMsg2(triplet: EdgeTriplet[Object,String] ): Iterator[(VertexId,String)] = {
+      //println(triplet.srcId+" --"+triplet.dstId)
+      val tuple=(triplet.srcAttr,triplet.dstAttr)
+
+      tuple match {
+
+        case (srcAttr: UserPreferences, dstAttr:UserPreferences)=> {
+          println("Tamanio "+srcAttr.friendsPreferences.size)
+          if(srcAttr.friendsPreferences.size>0) {
+
+          }
+          var str=triplet.srcId+":"
+            srcAttr.preferences foreach {case (key, value) => str+=key+","+value+","}
+            if (str.endsWith(","))
+              str=str.slice(0,str.length()-1)
+          println("Ida "+triplet.srcId+" --"+triplet.dstId)
+          println(triplet.dstId+"====>  "+str)
+          Iterator((triplet.dstId,str))
+          //Iterator((triplet.srcId,str))
+        }
+
+
+        case _=>Iterator.empty
+      }
+    }
+
+    def mergeMsg2(msg1: (String), msg2: (String)): String={
+      msg1+"&"+msg2
+    }
+
+    def setMsg22(vertexId: VertexId, value: Object, message: String):Object = {
+
+      //print(message)
+      if (message != "") {
+        //var mapa = new scala.collection.mutable.HashMap[Long, Double]
+        value match {
+          case value: UserPreferences => {
+            var user = value.asInstanceOf[UserPreferences]
+            for (i <- message.split("&")) {
+              val data = i.split(":")
+              var friendMap = new HashMap[Long, Double]()
+              val numbers = data(1).split(",")
+              for (j: Int <- 0 until (numbers.length / 2)) {
+                val index = numbers(j * 2)
+                val freq = numbers(j * 2 + 1)
+                friendMap(index.toLong) = freq.toDouble
+              }
+              user.friendsPreferences(data(0).toLong) = friendMap
+
+            }
+            user.asInstanceOf[Object]
+          }
+          case _ => value
+        }
+      }
+      value
+    }
+
+    def sendMsg22(triplet: EdgeTriplet[Object,String] ): Iterator[(VertexId,String)] = {
+
+      val tuple=(triplet.srcAttr,triplet.dstAttr)
+
+      tuple match {
+
+        case (srcAttr: UserPreferences, dstAttr:UserPreferences)=> {
+          var str = triplet.dstId + ":"
+          dstAttr.preferences foreach { case (key, value) => str += key + "," + value + "," }
+          if (str.endsWith(","))
+            str = str.slice(0, str.length() - 1)
+
+          println("Regreso"+triplet.srcId+" --"+triplet.dstId)
+          println(triplet.srcId+"====>  "+str)
+          Iterator((triplet.srcId, str))
+        }
+        case _ => Iterator.empty
+      }
+    }
+    val userWithFriendPreferences: Graph[Object, String]= newGraph.pregel("",maxIterations = 1)(
+      setMsg2, // Vertex Program
+      sendMsg2,// vertex received msg
+      mergeMsg2// Merge Message
+    )
+    printGraph(userWithFriendPreferences)
+    println("============")
+    println("Friend WithPreferences")
+    val userWithFriendPreferences2: Graph[Object, String]= userWithFriendPreferences.pregel("",maxIterations = 1)(
+      setMsg22, // Vertex Program
+      sendMsg22,// vertex received msg
+      mergeMsg2// Merge Message
+    )
+
+    printGraph(userWithFriendPreferences2)
     //    graph.collect.foreach {
     //      case ( id, User(  ) ) => println( s"$id" )
     //      case _ =>
@@ -221,4 +356,3 @@ object Main {
     spark.stop()
   }
 }
-
