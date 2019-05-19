@@ -41,31 +41,31 @@ object Main {
 
     val sc = spark.sparkContext
     //Load First CSV
-//    val csv = sc.textFile("./Gowalla_edges.txt")
-//    //Create User-Friendship Edges
-//    val friendshipEdges = csv.map { line =>
-//      val fields = line.split("\t")
-//      Edge(fields(0).toLong, fields(1).toLong, "")
-//    }
-//    //Create User nodes
-//    val users: RDD[(Long, VertexProperty)] = friendshipEdges.map(friendShip => (friendShip.srcId, User().asInstanceOf[VertexProperty])).distinct
-//    //Load Second CSV
-//    val csv2 = sc.textFile("./Gowalla_totalCheckins.txt")
-//    //Create User-Location Edges
-//    val usrLocationEdges = csv2.map { line =>
-//      val fields = line.split("\t")
-//      Edge(fields(0).toLong, fields(4).toLong * 1000L, fields(1))
-//    }
-//    //Create Location Nodes
-//    val locationNodes: RDD[(Long, VertexProperty)] = csv2.map { line =>
-//      val fields = line.split("\t")
-//      (fields(4).toLong * 1000L, Location(fields(2), fields(3)).asInstanceOf[VertexProperty])
-//    }.distinct
-//Just show 5 samples
-//    friendshipEdges.take(5).foreach(println)
-//    users.take(5).foreach(println)
-//    usrLocationEdges.take(5).foreach(println)
-//    locationNodes.take(5).foreach(println)
+    //    val csv = sc.textFile("./Gowalla_edges.txt")
+    //    //Create User-Friendship Edges
+    //    val friendshipEdges = csv.map { line =>
+    //      val fields = line.split("\t")
+    //      Edge(fields(0).toLong, fields(1).toLong, "")
+    //    }
+    //    //Create User nodes
+    //    val users: RDD[(Long, VertexProperty)] = friendshipEdges.map(friendShip => (friendShip.srcId, User().asInstanceOf[VertexProperty])).distinct
+    //    //Load Second CSV
+    //    val csv2 = sc.textFile("./Gowalla_totalCheckins.txt")
+    //    //Create User-Location Edges
+    //    val usrLocationEdges = csv2.map { line =>
+    //      val fields = line.split("\t")
+    //      Edge(fields(0).toLong, fields(4).toLong * 1000L, fields(1))
+    //    }
+    //    //Create Location Nodes
+    //    val locationNodes: RDD[(Long, VertexProperty)] = csv2.map { line =>
+    //      val fields = line.split("\t")
+    //      (fields(4).toLong * 1000L, Location(fields(2), fields(3)).asInstanceOf[VertexProperty])
+    //    }.distinct
+    //Just show 5 samples
+    //    friendshipEdges.take(5).foreach(println)
+    //    users.take(5).foreach(println)
+    //    usrLocationEdges.take(5).foreach(println)
+    //    locationNodes.take(5).foreach(println)
     //Merge nodes and edges of different types
     //val nodes = users.union(locationNodes);
     //val edges = friendshipEdges.union(usrLocationEdges);
@@ -110,76 +110,114 @@ object Main {
     //Query how many links have user #1
     println(graph.edges.filter(e => e.srcId == 1).count)
 
-    val locations = graph.vertices.filter{
-      case (id, vp: Location) => true
-      case _ => false
-    }
+    //    val locations = graph.vertices.filter{
+    //      case (id, vp: Location) => true
+    //      case _ => false
+    //    }
 
     val newVertices = graph.vertices.map { case (id, attr) => {
       attr match {
-        case attr: User => (id, Map[Long,Double]())
+        case attr: User => (id, new scala.collection.mutable.HashMap[Long, Double])
         case _ => (id, attr)
       }
-
     }
     }
-      val userMapsProperty=Graph(newVertices,graph.edges)
-       printGraph(userMapsProperty)
+    val userMapsProperty=Graph(newVertices,graph.edges)
+    printGraph(userMapsProperty)
 
-//println("Mensajes")
-      //    locations
-    val messages = userMapsProperty.aggregateMessages[String](
-      ctx =>{
-        ctx.srcAttr match {
-            case srcAttr : Location => {
-              ctx.sendToDst(ctx.srcId+"")
+    //println("Mensajes")
+    //    locations
+//    val messages = userMapsProperty.aggregateMessages[String](
+//      ctx =>{
+//        ctx.srcAttr match {
+//          case srcAttr : Location => {
+//            ctx.sendToDst(ctx.srcId+"")
+//          }
+//          case _=>null
+//        }
+//      },
+//      (a,b)=>a+","+b
+//    )
+//    //messages.foreach(println)
+//    val userPlacesInfo:Graph[Object,String] = userMapsProperty.outerJoinVertices(messages) {
+//      (id, origValue, msgValue ) => msgValue match {
+//        case Some(places:String) => {
+//          var mapa = new scala.collection.mutable.HashMap[Long, Double]
+//          for (i <- places.split(",")) {
+//            if (mapa.contains(i.toLong)) mapa(i.toLong) += 1.0
+//            else mapa(i.toLong) = 1.0
+//          }
+//          mapa
+//        }  // vertex received msg
+//        case None => origValue
+//      }
+//    }
+//    println("Grafo Agregado")
+//    printGraph(userPlacesInfo)
+
+
+    def setMsg(vertexId: VertexId, value: Object, message: String) = {
+      message match {
+        case message:String => {
+          //print(message)
+          if (message!="") {
+            //var mapa = new scala.collection.mutable.HashMap[Long, Double]
+            var mapa =value.asInstanceOf[scala.collection.mutable.HashMap[Long, Double]]
+            for (i <- message.split(",")) {
+              if (mapa.contains(i.toLong)) mapa(i.toLong) += 1.0
+              else mapa(i.toLong) = 1.0
             }
-            case _=>null
+            mapa
+          }else{
+            value
           }
-      },
-      (a,b)=>a+","+b
-    )
-  //messages.foreach(println)
-    val joined:Graph[Object,String] = userMapsProperty.outerJoinVertices(messages) {
-      (id, origValue, msgValue ) => msgValue match {
-        case Some(places:String) => {
-          var mapa = new scala.collection.mutable.HashMap[Long, Double]
-          for (i <- places.split(",")) {
-            if (mapa.contains(i.toLong)) mapa(i.toLong) += 1.0
-            else mapa(i.toLong) = 1.0
-          }
-          mapa
-        }  // vertex received msg
-        case None => origValue
+        }
+        case _ => value
       }
     }
-    println("Grafo Agregado")
-    printGraph(joined)
+    def sendMsg(triplet: EdgeTriplet[Object,String] ): Iterator[(VertexId,String)] = {
+      triplet.srcAttr match {
+        case srcAttr : Location => {
+          Iterator((triplet.dstId,triplet.srcId+""))
+        }
+        case _=>Iterator.empty
+      }
+    }
+
+    def mergeMsg(msg1: (String), msg2: (String)): String={
+      msg1+","+msg2
+    }
+    val userMapsPropertyAccum : Graph[Object, String]= userMapsProperty.pregel("",maxIterations = 1)(
+      setMsg, // Vertex Program
+      sendMsg,// vertex received msg
+      mergeMsg// Merge Message
+    )
+    val userMapsPropertyNormalized = userMapsPropertyAccum.vertices.map { case (id, attr) => {
+      attr match {
+        case attr: scala.collection.mutable.HashMap[Long,Double] => {
+          var total=0.0
+          //var mapa = new scala.collection.mutable.HashMap[Long, Double]
+          attr foreach {case (key, value) => total+= value}
+          attr foreach {case (key, value) => attr(key)=value/total}
+          (id,attr )
+        }
+        case _ => (id,attr )
+      }
+    }
+    }
+    val newGraph=Graph(userMapsPropertyNormalized,userMapsPropertyAccum.edges)
+    //println("Valores Normalizados")
+    //printGraph(newGraph)
+
+    println("Pregel sample -- Normalized")
+    printGraph(newGraph)
 
 
-
-//    val sssp = graph.pregel(Double.PositiveInfinity)(
-//      (id, dist, newDist) => dist, // Vertex Program
-//      triplet => {  // Send Message
-//
-//        triplet.srcAttr match {
-//          case srcAttr : Location => {
-//            Iterator((triplet.dstId, (triplet.srcId,1)))
-//          }
-//          case _=>Iterator.empty
-//        }
-//      }
-//      ,
-//      ((id1,cnt), (id2,cnt2)) => {
-//        if(id1==id2)
-//          (a_1)
-//      } // Merge Message
-//    )
-
-//    graph.collect.foreach {
-//      case ( id, User(  ) ) => println( s"$id" )
-//      case _ =>
-//    }
+    
+    //    graph.collect.foreach {
+    //      case ( id, User(  ) ) => println( s"$id" )
+    //      case _ =>
+    //    }
     spark.stop()
   }
 }
