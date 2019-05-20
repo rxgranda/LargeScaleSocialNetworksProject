@@ -3,10 +3,15 @@ package project
 
 import org.apache.spark.graphx.{VertexId, _}
 import org.apache.spark.sql.SparkSession
+
 import scala.collection.mutable.HashMap
 import org.apache.spark.rdd.RDD
+
+import scala.collection.immutable.ListMap
 import scala.runtime.ScalaRunTime._
 import scala.util.parsing.json.JSONObject
+import scala.collection.mutable.ArrayBuffer
+
 
 
 
@@ -308,21 +313,83 @@ object Main {
         case _ => Iterator.empty
       }
     }
-    val userWithFriendPreferences: Graph[Object, String]= newGraph.pregel("",maxIterations = 1,EdgeDirection.Out)(
+    val userWithFriendPreferencesIntermediate: Graph[Object, String]= newGraph.pregel("",maxIterations = 1,EdgeDirection.Out)(
       setMsg2, // Vertex Program
       sendMsg2,// vertex received msg
       mergeMsg2// Merge Message
     )
-    printGraph(userWithFriendPreferences)
+    printGraph(userWithFriendPreferencesIntermediate)
     println("============")
     println("Friend WithPreferences")
-    val userWithFriendPreferences2: Graph[Object, String]= userWithFriendPreferences.pregel("",maxIterations = 1,EdgeDirection.In)(
+    val userWithFriendPreferences: Graph[Object, String]= userWithFriendPreferencesIntermediate.pregel("",maxIterations = 1,EdgeDirection.In)(
       setMsg2, // Vertex Program
       sendMsg22,// vertex received msg
       mergeMsg2// Merge Message
     )
 
-    printGraph(userWithFriendPreferences2)
+    printGraph(userWithFriendPreferences)
+
+    val recomendations = userWithFriendPreferences.vertices.map { case (id, attr) => {
+      attr match {
+        case attr: UserPreferences => {
+          val friendHistory=attr.friendsPreferences
+          val selfHistory=attr.preferences
+          var unvisitedLocations = ArrayBuffer[Long]()
+
+          var magnitudeU=0.0
+          selfHistory foreach {case (locationID, value) =>magnitudeU+=value*value}
+          magnitudeU=math.sqrt(magnitudeU)
+
+          var similarities=HashMap[Long,Double]()
+
+          friendHistory foreach {case (frienID, mapPlaces) =>
+            mapPlaces foreach {
+              case (locationID, preference) =>{
+                if (!selfHistory.contains(locationID)){
+                  unvisitedLocations+= locationID
+                  if(!similarities.contains(frienID)){
+                    var denominator=0.0
+                    mapPlaces foreach {case (locationID, value) =>denominator+=value*value}
+                    denominator=math.sqrt(denominator)
+                    val allPlaces=mapPlaces.keySet++selfHistory.keySet
+                    var numerator=0.0
+                    allPlaces.foreach((i: Long) => {
+                        if(mapPlaces.contains(i)&&selfHistory.contains(i))
+                          numerator+=mapPlaces(i)*selfHistory(i)
+                      }
+                    )
+                    if(denominator!=0)
+                      numerator=numerator/(denominator*magnitudeU)
+                    else
+                      numerator=0
+                    similarities(frienID)=numerator
+                  }
+                }
+              }
+            }
+          }
+          var scores=HashMap[Long,Double]();
+          var denominator=0.0
+          similarities foreach {case (frienID, value) =>denominator+=value}
+          for ( loc <- unvisitedLocations ) {
+              var numerator=0.0
+              friendHistory foreach {case (frienID, mapPlaces) =>{
+                if(mapPlaces.contains(loc))
+                  numerator+=similarities(frienID)*mapPlaces(loc)
+              }}
+            scores(loc)=numerator/denominator
+          }
+          //Sort scores
+          val sortedScores=ListMap(scores.toSeq.sortWith(_._2 > _._2):_*)
+          (id,sortedScores)
+          }
+        case _ => (id, attr)
+      }
+    }
+    }
+    val recomendationsGraph=Graph(recomendations,userWithFriendPreferences.edges)
+    println("Recomendations")
+    printGraph(recomendationsGraph)
     //    graph.collect.foreach {
     //      case ( id, User(  ) ) => println( s"$id" )
     //      case _ =>
