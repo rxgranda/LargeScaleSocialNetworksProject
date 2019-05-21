@@ -339,7 +339,7 @@ object Main {
           var magnitudeU=0.0
           selfHistory foreach {case (locationID, value) =>magnitudeU+=value*value}
           magnitudeU=math.sqrt(magnitudeU)
-
+          println(id+":  Umag:"+magnitudeU)
           var similarities=HashMap[Long,Double]()
 
           friendHistory foreach {case (frienID, mapPlaces) =>
@@ -358,10 +358,12 @@ object Main {
                           numerator+=mapPlaces(i)*selfHistory(i)
                       }
                     )
-                    if(denominator!=0)
+                    if(denominator!=0){
+                      println(numerator)
                       numerator=numerator/(denominator*magnitudeU)
-                    else
+                    }else{
                       numerator=0
+                    }
                     similarities(frienID)=numerator
                   }
                 }
@@ -370,7 +372,9 @@ object Main {
           }
           var scores=HashMap[Long,Double]();
           var denominator=0.0
-          similarities foreach {case (frienID, value) =>denominator+=value}
+          similarities foreach {case (frienID, value) =>{
+            println(id+":    Friend: "+frienID+ "   sim:"+value)
+            denominator+=value}}
           for ( loc <- unvisitedLocations ) {
               var numerator=0.0
               friendHistory foreach {case (frienID, mapPlaces) =>{
@@ -379,6 +383,8 @@ object Main {
               }}
             scores(loc)=numerator/denominator
           }
+
+          println("----"+id+"   denominator: "+denominator)
           //Sort scores
           val sortedScores=ListMap(scores.toSeq.sortWith(_._2 > _._2):_*)
           (id,sortedScores)
