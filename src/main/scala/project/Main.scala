@@ -19,6 +19,7 @@ class VertexProperty()
 
 case class User(val places:Array[Double]) extends VertexProperty
 case class UserPreferences(var preferences:HashMap[Long, Double],var friendsPreferences:HashMap[Long,HashMap[Long, Double] ]) extends VertexProperty
+case class UserCluster(var friendsPreferences:HashMap[Long,HashMap[Long, Double] ]) extends VertexProperty
 
 case class Location(val lat: String, val long: String) extends VertexProperty
 
@@ -41,6 +42,74 @@ object Main {
 
   }
 
+
+  def makeRecomendations(userWithFriendPreferences:Graph[Object,String]): RDD[(VertexId,Object)] ={
+    val recomendations = userWithFriendPreferences.vertices.map { case (id, attr) => {
+      attr match {
+        case attr: UserPreferences => {
+          val friendHistory=attr.friendsPreferences
+          val selfHistory=attr.preferences
+          var unvisitedLocations = ArrayBuffer[Long]()
+
+          var magnitudeU=0.0
+          selfHistory foreach {case (locationID, value) =>magnitudeU+=value*value}
+          magnitudeU=math.sqrt(magnitudeU)
+          println(id+":  Umag:"+magnitudeU)
+          var similarities=HashMap[Long,Double]()
+
+          friendHistory foreach {case (frienID, mapPlaces) =>
+            mapPlaces foreach {
+              case (locationID, preference) =>{
+                if (!selfHistory.contains(locationID)){
+                  unvisitedLocations+= locationID
+                  if(!similarities.contains(frienID)){
+                    var denominator=0.0
+                    mapPlaces foreach {case (locationID, value) =>denominator+=value*value}
+                    denominator=math.sqrt(denominator)
+                    val allPlaces=mapPlaces.keySet++selfHistory.keySet
+                    var numerator=0.0
+                    allPlaces.foreach((i: Long) => {
+                      if(mapPlaces.contains(i)&&selfHistory.contains(i))
+                        numerator+=mapPlaces(i)*selfHistory(i)
+                    }
+                    )
+                    if(denominator!=0){
+                      println(numerator)
+                      numerator=numerator/(denominator*magnitudeU)
+                    }else{
+                      numerator=0
+                    }
+                    similarities(frienID)=numerator
+                  }
+                }
+              }
+            }
+          }
+          var scores=HashMap[Long,Double]();
+          var denominator=0.0
+          similarities foreach {case (frienID, value) =>{
+            println(id+":    Friend: "+frienID+ "   sim:"+value)
+            denominator+=value}}
+          for ( loc <- unvisitedLocations ) {
+            var numerator=0.0
+            friendHistory foreach {case (frienID, mapPlaces) =>{
+              if(mapPlaces.contains(loc))
+                numerator+=similarities(frienID)*mapPlaces(loc)
+            }}
+            scores(loc)=numerator/denominator
+          }
+
+          println("----"+id+"   denominator: "+denominator)
+          //Sort scores
+          val sortedScores=ListMap(scores.toSeq.sortWith(_._2 > _._2):_*)
+          (id,sortedScores)
+        }
+        case _ => (id, attr)
+      }
+    }
+    }
+    recomendations
+  }
   def main(args: Array[String]): Unit = {
     // Creates a SparkSession.
     val spark = SparkSession
@@ -110,6 +179,7 @@ object Main {
       Edge( 12L, 5L,"2010-10-19T23:55:27Z" ),
       Edge( 14L, 5L,"2010-10-19T23:55:27Z" ),
       Edge( 10L, 1L,"2010-10-19T23:55:27Z" ),
+      Edge( 13L, 3L,"2010-10-19T23:55:27Z" ),
     )
     val edges= sc.parallelize(links)
     //Sample 5
@@ -224,9 +294,6 @@ object Main {
     printGraph(newGraph)
 
     def setMsg2(vertexId: VertexId, value: Object, message: String):Object = {
-
-
-
       if (message != "") {
         println(vertexId.toString+" ===  "+message)
         //var mapa = new scala.collection.mutable.HashMap[Long, Double]
@@ -329,73 +396,194 @@ object Main {
 
     printGraph(userWithFriendPreferences)
 
-    val recomendations = userWithFriendPreferences.vertices.map { case (id, attr) => {
-      attr match {
-        case attr: UserPreferences => {
-          val friendHistory=attr.friendsPreferences
-          val selfHistory=attr.preferences
-          var unvisitedLocations = ArrayBuffer[Long]()
-
-          var magnitudeU=0.0
-          selfHistory foreach {case (locationID, value) =>magnitudeU+=value*value}
-          magnitudeU=math.sqrt(magnitudeU)
-          println(id+":  Umag:"+magnitudeU)
-          var similarities=HashMap[Long,Double]()
-
-          friendHistory foreach {case (frienID, mapPlaces) =>
-            mapPlaces foreach {
-              case (locationID, preference) =>{
-                if (!selfHistory.contains(locationID)){
-                  unvisitedLocations+= locationID
-                  if(!similarities.contains(frienID)){
-                    var denominator=0.0
-                    mapPlaces foreach {case (locationID, value) =>denominator+=value*value}
-                    denominator=math.sqrt(denominator)
-                    val allPlaces=mapPlaces.keySet++selfHistory.keySet
-                    var numerator=0.0
-                    allPlaces.foreach((i: Long) => {
-                        if(mapPlaces.contains(i)&&selfHistory.contains(i))
-                          numerator+=mapPlaces(i)*selfHistory(i)
-                      }
-                    )
-                    if(denominator!=0){
-                      println(numerator)
-                      numerator=numerator/(denominator*magnitudeU)
-                    }else{
-                      numerator=0
-                    }
-                    similarities(frienID)=numerator
-                  }
-                }
-              }
-            }
-          }
-          var scores=HashMap[Long,Double]();
-          var denominator=0.0
-          similarities foreach {case (frienID, value) =>{
-            println(id+":    Friend: "+frienID+ "   sim:"+value)
-            denominator+=value}}
-          for ( loc <- unvisitedLocations ) {
-              var numerator=0.0
-              friendHistory foreach {case (frienID, mapPlaces) =>{
-                if(mapPlaces.contains(loc))
-                  numerator+=similarities(frienID)*mapPlaces(loc)
-              }}
-            scores(loc)=numerator/denominator
-          }
-
-          println("----"+id+"   denominator: "+denominator)
-          //Sort scores
-          val sortedScores=ListMap(scores.toSeq.sortWith(_._2 > _._2):_*)
-          (id,sortedScores)
-          }
-        case _ => (id, attr)
-      }
-    }
-    }
-    val recomendationsGraph=Graph(recomendations,userWithFriendPreferences.edges)
+    val recomendationsVertices=makeRecomendations(userWithFriendPreferences)
+    val recomendationsGraph=Graph(recomendationsVertices,userWithFriendPreferences.edges)
     println("Recomendations")
     printGraph(recomendationsGraph)
+
+
+
+    //////// Clusters
+    println("----Analysis with clusters-----")
+    val verticesUsersClusters = Array[ ( VertexId, Object) ] (
+      ( 100L,UserCluster(new HashMap[Long, HashMap[Long, Double]]())) ,
+      ( 200L, UserCluster( new HashMap[Long, HashMap[Long, Double]]())) ,
+    )
+    val nodesUC= sc.parallelize(verticesUsersClusters)
+
+    val linksUsersCluster = Array(
+      Edge( 1L, 100L,"" ),
+      Edge( 4L, 100L ,""),
+      Edge( 5L, 100L ,""),
+      Edge( 2L, 200L ,""),
+      Edge( 3L, 200L ,""),
+    )
+    val edgesUC= sc.parallelize(linksUsersCluster)
+
+    //Create Graph
+    val graphUC= Graph(userMapsProperty.vertices.union(nodesUC),userMapsProperty.edges.union(edgesUC) )
+
+    graphUC.vertices.foreach(println)
+    graphUC.edges.foreach(println)
+
+
+    def setMsgInClusterOrUser(vertexId: VertexId, value: Object, message: String):Object = {
+      println("------------ID:"+vertexId+"   "+stringOf(value) +"   Message:"+message)
+      if (message != "") {
+        println(vertexId.toString+" ===  "+message)
+        value match {
+          case value: UserCluster => {
+
+            for (i <- message.split("&")) {
+              val data = i.split(":")
+              var friendMap = new HashMap[Long, Double]()
+              val numbers = data(1).split(",")
+              for (j: Int <- 0 until (numbers.length / 2)) {
+                val index = numbers(j * 2)
+                val freq = numbers(j * 2 + 1)
+                friendMap(index.toLong) = freq.toDouble
+              }
+              value.friendsPreferences(data(0).toLong) = friendMap
+
+            }
+            value.asInstanceOf[Object]
+          }
+        }
+      } else { //Initial Message used for Transformation
+          print("Se fue por aqui")
+          value match {
+            case value: HashMap[Long, Double] => {
+              val mapa = value.asInstanceOf[scala.collection.mutable.HashMap[Long, Double]]
+              var user = UserPreferences(mapa, new HashMap[Long, HashMap[Long, Double]]())
+              println("Attributo Transformado")
+              user
+            }
+            case _ => value
+          }
+        }
+    }
+    def sendMsgToCluster(triplet: EdgeTriplet[Object,String] ): Iterator[(VertexId,String)] = {
+      //println(triplet.srcId+" --"+triplet.dstId)
+      val tuple=(triplet.srcAttr,triplet.dstAttr)
+
+      tuple match {
+        case (srcAttr: UserPreferences, dstAttr:UserCluster)=> {
+          var str=triplet.srcId+":"
+          srcAttr.preferences foreach {case (key, value) => str+=key+","+value+","}
+          if (str.endsWith(","))
+            str=str.slice(0,str.length()-1)
+          println("Ida "+triplet.srcId+" --"+triplet.dstId)
+          println(triplet.dstId+"====>  "+str)
+          Iterator((triplet.dstId,str))
+          //Iterator((triplet.srcId,str))
+        }
+        case _=>Iterator.empty
+      }
+    }
+
+    val cluster: Graph[Object, String]= graphUC.pregel("",maxIterations = 1,EdgeDirection.Out)(
+      setMsgInClusterOrUser, // Vertex Program
+      sendMsgToCluster,// vertex received msg
+      mergeMsg2// Merge Message
+    )
+
+    printGraph(cluster)
+    def setMsgInUser(vertexId: VertexId, value: Object, message: String):Object = {
+      println("------------ID:"+vertexId+"   "+stringOf(value) +"   Message:"+message)
+      if (message != "") {
+        println(vertexId.toString+" ===  "+message)
+        value match {
+          case value: UserPreferences=> {
+
+            for (i <- message.split("&")) {
+              val data = i.split(":")
+              println(stringOf(data))
+              var friendMap = new HashMap[Long, Double]()
+              val numbers = data(1).split(",")
+              for (j: Int <- 0 until (numbers.length / 2)) {
+                val index = numbers(j * 2)
+                val freq = numbers(j * 2 + 1)
+                friendMap(index.toLong) = freq.toDouble
+              }
+              if(vertexId.toLong!=data(0).toLong)
+                value.friendsPreferences(data(0).toLong) = friendMap
+
+            }
+            value.asInstanceOf[Object]
+          }
+        }
+      }
+      value match {
+        case value: UserCluster=> {
+          (vertexId,value)
+        }
+        case _ => value
+      }
+
+    }
+
+
+
+    def alternate(triplet: EdgeTriplet[Object,String] ): Iterator[(VertexId,String)] = {
+      println(triplet.srcId+" -- "+triplet.dstId)
+      val tuple=(triplet.srcAttr,triplet.dstAttr)
+
+      println(triplet.dstId+": "+stringOf(triplet.dstAttr))
+      tuple match {
+        case (srcAttr:UserPreferences, dstAttr:(VertexId,UserCluster ))=> {
+
+          var str=""//triplet.srcId+":"
+          println( dstAttr)
+          dstAttr._2.friendsPreferences foreach {case (friendID, friendMap) =>{
+            str+=friendID+":"
+            println("Friend: "+friendID)
+            friendMap foreach{case (locationId, preference) =>{
+              str+=locationId+","+preference+","
+            }
+
+            }
+            if (str.endsWith(","))
+              str=str.slice(0,str.length()-1)
+            str+="&"
+          }}
+          if (str.endsWith("&"))
+            str=str.slice(0,str.length()-1)
+
+          println("Ida "+triplet.srcId+" --   "+triplet.dstId)
+          println(triplet.dstId+"====>  "+str)
+          Iterator((triplet.srcId,str))
+        }
+        case _=>Iterator.empty
+      }
+    }
+
+    println("------------------")
+    val userWithClusterPref: Graph[Object, String]= cluster.pregel("",maxIterations = 1)(
+      setMsgInUser, // Vertex Program
+      alternate,// vertex received msg
+      mergeMsg2// Merge Message
+    )
+    println("------------------")
+
+
+    printGraph(userWithClusterPref)
+    val userRecommendationsCluster=makeRecomendations(userWithClusterPref)
+    val finalNetworkCluster=Graph(userRecommendationsCluster,userWithClusterPref.edges)
+    printGraph(finalNetworkCluster)
+
+//    graphUC.outerJoinVertices(userMapsProperty.vertices){
+//            (id, origValue, msgValue ) => origValue match {
+//              case  => {
+//                var mapa = new scala.collection.mutable.HashMap[Long, Double]
+//                for (i <- places.split(",")) {
+//                  if (mapa.contains(i.toLong)) mapa(i.toLong) += 1.0
+//                  else mapa(i.toLong) = 1.0
+//                }
+//                mapa
+//              }  // vertex received msg
+//              case None => origValue
+//            }
+//          }
     //    graph.collect.foreach {
     //      case ( id, User(  ) ) => println( s"$id" )
     //      case _ =>
