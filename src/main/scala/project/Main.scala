@@ -54,7 +54,7 @@ object Main {
           var magnitudeU=0.0
           selfHistory foreach {case (locationID, value) =>magnitudeU+=value*value}
           magnitudeU=math.sqrt(magnitudeU)
-          println(id+":  Umag:"+magnitudeU)
+          //println(id+":  Umag:"+magnitudeU)
           var similarities=HashMap[Long,Double]()
 
           friendHistory foreach {case (frienID, mapPlaces) =>
@@ -74,7 +74,7 @@ object Main {
                     }
                     )
                     if(denominator!=0){
-                      println(numerator)
+                      //println(numerator)
                       numerator=numerator/(denominator*magnitudeU)
                     }else{
                       numerator=0
@@ -88,7 +88,7 @@ object Main {
           var scores=HashMap[Long,Double]();
           var denominator=0.0
           similarities foreach {case (frienID, value) =>{
-            println(id+":    Friend: "+frienID+ "   sim:"+value)
+            //println(id+":    Friend: "+frienID+ "   sim:"+value)
             denominator+=value}}
           for ( loc <- unvisitedLocations ) {
             var numerator=0.0
@@ -99,7 +99,7 @@ object Main {
             scores(loc)=numerator/denominator
           }
 
-          println("----"+id+"   denominator: "+denominator)
+          //println("----"+id+"   denominator: "+denominator)
           //Sort scores
           val sortedScores=ListMap(scores.toSeq.sortWith(_._2 > _._2):_*)
           (id,sortedScores)
@@ -121,75 +121,76 @@ object Main {
 
     val sc = spark.sparkContext
     //Load First CSV
-    //    val csv = sc.textFile("./Gowalla_edges.txt")
-    //    //Create User-Friendship Edges
-    //    val friendshipEdges = csv.map { line =>
-    //      val fields = line.split("\t")
-    //      Edge(fields(0).toLong, fields(1).toLong, "")
-    //    }
-    //    //Create User nodes
-    //    val users: RDD[(Long, VertexProperty)] = friendshipEdges.map(friendShip => (friendShip.srcId, User().asInstanceOf[VertexProperty])).distinct
-    //    //Load Second CSV
-    //    val csv2 = sc.textFile("./Gowalla_totalCheckins.txt")
-    //    //Create User-Location Edges
-    //    val usrLocationEdges = csv2.map { line =>
-    //      val fields = line.split("\t")
-    //      Edge(fields(0).toLong, fields(4).toLong * 1000L, fields(1))
-    //    }
-    //    //Create Location Nodes
-    //    val locationNodes: RDD[(Long, VertexProperty)] = csv2.map { line =>
-    //      val fields = line.split("\t")
-    //      (fields(4).toLong * 1000L, Location(fields(2), fields(3)).asInstanceOf[VertexProperty])
-    //    }.distinct
+        val csv = sc.textFile("../Gowalla_edges.txt")
+        //Create User-Friendship Edges
+        val friendshipEdges = csv.map { line =>
+          val fields = line.split("\t")
+          Edge(fields(0).toLong, fields(1).toLong, "")
+        }
+        //Create User nodes
+        val users: RDD[(Long, VertexProperty)] = friendshipEdges.map(friendShip => (friendShip.srcId, User(Array()).asInstanceOf[VertexProperty])).distinct
+        //Load Second CSV
+        val csv2 = sc.textFile("../Gowalla_totalCheckins.txt")
+        //Create User-Location Edges
+        val usrLocationEdges = csv2.map { line =>
+          val fields = line.split("\t")
+          Edge(fields(4).toLong * 1000L,fields(0).toLong, fields(1))
+        }
+        //Create Location Nodes
+        val locationNodes: RDD[(Long, VertexProperty)] = csv2.map { line =>
+          val fields = line.split("\t")
+          (fields(4).toLong * 1000L, Location(fields(2), fields(3)).asInstanceOf[VertexProperty])
+        }.distinct
     //Just show 5 samples
-    //    friendshipEdges.take(5).foreach(println)
-    //    users.take(5).foreach(println)
-    //    usrLocationEdges.take(5).foreach(println)
-    //    locationNodes.take(5).foreach(println)
+    println("Just show 5 examples")
+        friendshipEdges.take(5).foreach(println)
+        users.take(5).foreach(println)
+        usrLocationEdges.take(5).foreach(println)
+        locationNodes.take(5).foreach(println)
     //Merge nodes and edges of different types
-    //val nodes = users.union(locationNodes);
-    //val edges = friendshipEdges.union(usrLocationEdges);
+    val nodes = users.union(locationNodes);
+    val edges = friendshipEdges.union(usrLocationEdges);
 
-    val vertices = Array[ ( VertexId, VertexProperty) ] (
-      ( 10L, Location("51.903491456","8.636259513")) ,
-      ( 11L, Location("51.903491456","8.636259513")) ,
-      ( 12L, Location("51.903491456","8.636259513")) ,
-      ( 13L, Location("51.903491456","8.636259513")) ,
-      ( 14L, Location("51.903491456","8.636259513")) ,
-      ( 1L, User(Array())) ,
-      ( 2L, User(Array())) ,
-      ( 3L, User(Array())) ,
-      ( 4L, User(Array())) ,
-      ( 5L, User(Array())) ,
-    )
-    val nodes= sc.parallelize(vertices)
-
-    val links = Array(
-      Edge( 1L, 4L,"" ),
-      Edge( 2L, 4L ,""),
-      Edge( 2L, 5L,"" ),
-      Edge( 3L, 5L,"" ),
-      Edge( 10L, 1L,"2010-10-19T23:55:27Z" ),
-      Edge( 11L, 1L,"2010-10-19T23:55:27Z" ),
-      Edge( 12L, 2L,"2010-10-19T23:55:27Z" ),
-      Edge( 13L, 2L,"2010-10-19T23:55:27Z" ),
-      Edge( 14L, 3L,"2010-10-19T23:55:27Z" ),
-      Edge( 11L, 4L,"2010-10-19T23:55:27Z" ),
-      Edge( 12L, 4L,"2010-10-19T23:55:27Z" ),
-      Edge( 12L, 5L,"2010-10-19T23:55:27Z" ),
-      Edge( 14L, 5L,"2010-10-19T23:55:27Z" ),
-      Edge( 10L, 1L,"2010-10-19T23:55:27Z" ),
-      Edge( 13L, 3L,"2010-10-19T23:55:27Z" ),
-    )
-    val edges= sc.parallelize(links)
+//    val vertices = Array[ ( VertexId, VertexProperty) ] (
+//      ( 10L, Location("51.903491456","8.636259513")) ,
+//      ( 11L, Location("51.903491456","8.636259513")) ,
+//      ( 12L, Location("51.903491456","8.636259513")) ,
+//      ( 13L, Location("51.903491456","8.636259513")) ,
+//      ( 14L, Location("51.903491456","8.636259513")) ,
+//      ( 1L, User(Array())) ,
+//      ( 2L, User(Array())) ,
+//      ( 3L, User(Array())) ,
+//      ( 4L, User(Array())) ,
+//      ( 5L, User(Array())) ,
+//    )
+//    val nodes= sc.parallelize(vertices)
+//
+//    val links = Array(
+//      Edge( 1L, 4L,"" ),
+//      Edge( 2L, 4L ,""),
+//      Edge( 2L, 5L,"" ),
+//      Edge( 3L, 5L,"" ),
+//      Edge( 10L, 1L,"2010-10-19T23:55:27Z" ),
+//      Edge( 11L, 1L,"2010-10-19T23:55:27Z" ),
+//      Edge( 12L, 2L,"2010-10-19T23:55:27Z" ),
+//      Edge( 13L, 2L,"2010-10-19T23:55:27Z" ),
+//      Edge( 14L, 3L,"2010-10-19T23:55:27Z" ),
+//      Edge( 11L, 4L,"2010-10-19T23:55:27Z" ),
+//      Edge( 12L, 4L,"2010-10-19T23:55:27Z" ),
+//      Edge( 12L, 5L,"2010-10-19T23:55:27Z" ),
+//      Edge( 14L, 5L,"2010-10-19T23:55:27Z" ),
+//      Edge( 10L, 1L,"2010-10-19T23:55:27Z" ),
+//      Edge( 13L, 3L,"2010-10-19T23:55:27Z" ),
+//    )
+//    val edges= sc.parallelize(links)
     //Sample 5
     nodes.take(5).foreach(println)
     edges.take(5).foreach(println)
     //Create Graph
     val graph= Graph(nodes, edges)
-
+    //println("Is connected: ")
     //Query how many links have user #1
-    println(graph.edges.filter(e => e.srcId == 1).count)
+    //println(graph.edges.filter(e => e.srcId == 1).count)
 
     //    val locations = graph.vertices.filter{
     //      case (id, vp: Location) => true
@@ -204,7 +205,7 @@ object Main {
     }
     }
     val userMapsProperty=Graph(newVertices,graph.edges)
-    printGraph(userMapsProperty)
+    //printGraph(userMapsProperty)
 
     //println("Mensajes")
     //    locations
@@ -248,6 +249,8 @@ object Main {
               if (mapa.contains(i.toLong)) mapa(i.toLong) += 1.0
               else mapa(i.toLong) = 1.0
             }
+            if(vertexId==182201)
+              println("")
             mapa
           }else{
             value
@@ -287,15 +290,16 @@ object Main {
     }
     }
     val newGraph=Graph(userMapsPropertyNormalized,userMapsPropertyAccum.edges)
-    //println("Valores Normalizados")
+    println("Valores Normalizados")
+    newGraph.vertices.take(100).foreach(println)
     //printGraph(newGraph)
 
     println("Pregel sample -- Normalized")
-    printGraph(newGraph)
+    //printGraph(newGraph)
 
     def setMsg2(vertexId: VertexId, value: Object, message: String):Object = {
       if (message != "") {
-        println(vertexId.toString+" ===  "+message)
+        //println(vertexId.toString+" ===  "+message)
         //var mapa = new scala.collection.mutable.HashMap[Long, Double]
         value match {
           case value: UserPreferences => {
@@ -303,7 +307,16 @@ object Main {
             for (i <- message.split("&")) {
               val data = i.split(":")
               var friendMap = new HashMap[Long, Double]()
-              val numbers = data(1).split(",")
+              var numbers = Array[String]()
+              try {
+                numbers=data(1).split(",")
+              } catch {
+
+                case e: Exception => {
+                  println("id:"+vertexId+"  message:"+message)
+                  println(e)
+                }
+              }
               for (j: Int <- 0 until (numbers.length / 2)) {
                 val index = numbers(j * 2)
                 val freq = numbers(j * 2 + 1)
@@ -321,7 +334,7 @@ object Main {
           case value: HashMap[Long, Double] => {
             val mapa = value.asInstanceOf[scala.collection.mutable.HashMap[Long, Double]]
             var user = UserPreferences(mapa, new HashMap[Long, HashMap[Long, Double]]())
-            println("Attributo Transformado")
+            //println("Attributo Transformado")
             user
           }
           case _ => value
@@ -336,7 +349,7 @@ object Main {
       tuple match {
 
         case (srcAttr: UserPreferences, dstAttr:UserPreferences)=> {
-          println("Tamanio "+dstAttr.friendsPreferences.size)
+         // println("Tamanio "+dstAttr.friendsPreferences.size)
           if(srcAttr.friendsPreferences.size>0) {
 
           }
@@ -344,8 +357,8 @@ object Main {
             srcAttr.preferences foreach {case (key, value) => str+=key+","+value+","}
             if (str.endsWith(","))
               str=str.slice(0,str.length()-1)
-          println("Ida "+triplet.srcId+" --"+triplet.dstId)
-          println(triplet.dstId+"====>  "+str)
+          //println("Ida "+triplet.srcId+" --"+triplet.dstId)
+          //println(triplet.dstId+"====>  "+str)
           Iterator((triplet.dstId,str))
           //Iterator((triplet.srcId,str))
         }
@@ -373,8 +386,8 @@ object Main {
           if (str.endsWith(","))
             str = str.slice(0, str.length() - 1)
 
-          println("Regreso"+triplet.srcId+" --"+triplet.dstId)
-          println(triplet.srcId+"====>  "+str)
+          //println("Regreso"+triplet.srcId+" --"+triplet.dstId)
+          //println(triplet.srcId+"====>  "+str)
           Iterator((triplet.srcId, str))
         }
         case _ => Iterator.empty
@@ -385,7 +398,7 @@ object Main {
       sendMsg2,// vertex received msg
       mergeMsg2// Merge Message
     )
-    printGraph(userWithFriendPreferencesIntermediate)
+    //printGraph(userWithFriendPreferencesIntermediate)
     println("============")
     println("Friend WithPreferences")
     val userWithFriendPreferences: Graph[Object, String]= userWithFriendPreferencesIntermediate.pregel("",maxIterations = 1,EdgeDirection.In)(
@@ -394,7 +407,7 @@ object Main {
       mergeMsg2// Merge Message
     )
 
-    printGraph(userWithFriendPreferences)
+    //printGraph(userWithFriendPreferences)
 
     val recomendationsVertices=makeRecomendations(userWithFriendPreferences)
     val recomendationsGraph=Graph(recomendationsVertices,userWithFriendPreferences.edges)
@@ -404,172 +417,172 @@ object Main {
 
 
     //////// Clusters
-    println("----Analysis with clusters-----")
-    val verticesUsersClusters = Array[ ( VertexId, Object) ] (
-      ( 100L,UserCluster(new HashMap[Long, HashMap[Long, Double]]())) ,
-      ( 200L, UserCluster( new HashMap[Long, HashMap[Long, Double]]())) ,
-    )
-    val nodesUC= sc.parallelize(verticesUsersClusters)
-
-    val linksUsersCluster = Array(
-      Edge( 1L, 100L,"" ),
-      Edge( 4L, 100L ,""),
-      Edge( 5L, 100L ,""),
-      Edge( 2L, 200L ,""),
-      Edge( 3L, 200L ,""),
-    )
-    val edgesUC= sc.parallelize(linksUsersCluster)
-
-    //Create Graph
-    val graphUC= Graph(userMapsProperty.vertices.union(nodesUC),userMapsProperty.edges.union(edgesUC) )
-
-    graphUC.vertices.foreach(println)
-    graphUC.edges.foreach(println)
-
-
-    def setMsgInClusterOrUser(vertexId: VertexId, value: Object, message: String):Object = {
-      println("------------ID:"+vertexId+"   "+stringOf(value) +"   Message:"+message)
-      if (message != "") {
-        println(vertexId.toString+" ===  "+message)
-        value match {
-          case value: UserCluster => {
-
-            for (i <- message.split("&")) {
-              val data = i.split(":")
-              var friendMap = new HashMap[Long, Double]()
-              val numbers = data(1).split(",")
-              for (j: Int <- 0 until (numbers.length / 2)) {
-                val index = numbers(j * 2)
-                val freq = numbers(j * 2 + 1)
-                friendMap(index.toLong) = freq.toDouble
-              }
-              value.friendsPreferences(data(0).toLong) = friendMap
-
-            }
-            value.asInstanceOf[Object]
-          }
-        }
-      } else { //Initial Message used for Transformation
-          print("Se fue por aqui")
-          value match {
-            case value: HashMap[Long, Double] => {
-              val mapa = value.asInstanceOf[scala.collection.mutable.HashMap[Long, Double]]
-              var user = UserPreferences(mapa, new HashMap[Long, HashMap[Long, Double]]())
-              println("Attributo Transformado")
-              user
-            }
-            case _ => value
-          }
-        }
-    }
-    def sendMsgToCluster(triplet: EdgeTriplet[Object,String] ): Iterator[(VertexId,String)] = {
-      //println(triplet.srcId+" --"+triplet.dstId)
-      val tuple=(triplet.srcAttr,triplet.dstAttr)
-
-      tuple match {
-        case (srcAttr: UserPreferences, dstAttr:UserCluster)=> {
-          var str=triplet.srcId+":"
-          srcAttr.preferences foreach {case (key, value) => str+=key+","+value+","}
-          if (str.endsWith(","))
-            str=str.slice(0,str.length()-1)
-          println("Ida "+triplet.srcId+" --"+triplet.dstId)
-          println(triplet.dstId+"====>  "+str)
-          Iterator((triplet.dstId,str))
-          //Iterator((triplet.srcId,str))
-        }
-        case _=>Iterator.empty
-      }
-    }
-
-    val cluster: Graph[Object, String]= graphUC.pregel("",maxIterations = 1,EdgeDirection.Out)(
-      setMsgInClusterOrUser, // Vertex Program
-      sendMsgToCluster,// vertex received msg
-      mergeMsg2// Merge Message
-    )
-
-    printGraph(cluster)
-    def setMsgInUser(vertexId: VertexId, value: Object, message: String):Object = {
-      println("------------ID:"+vertexId+"   "+stringOf(value) +"   Message:"+message)
-      if (message != "") {
-        println(vertexId.toString+" ===  "+message)
-        value match {
-          case value: UserPreferences=> {
-
-            for (i <- message.split("&")) {
-              val data = i.split(":")
-              println(stringOf(data))
-              var friendMap = new HashMap[Long, Double]()
-              val numbers = data(1).split(",")
-              for (j: Int <- 0 until (numbers.length / 2)) {
-                val index = numbers(j * 2)
-                val freq = numbers(j * 2 + 1)
-                friendMap(index.toLong) = freq.toDouble
-              }
-              if(vertexId.toLong!=data(0).toLong)
-                value.friendsPreferences(data(0).toLong) = friendMap
-
-            }
-            value.asInstanceOf[Object]
-          }
-        }
-      }
-      value match {
-        case value: UserCluster=> {
-          (vertexId,value)
-        }
-        case _ => value
-      }
-
-    }
-
-
-
-    def alternate(triplet: EdgeTriplet[Object,String] ): Iterator[(VertexId,String)] = {
-      println(triplet.srcId+" -- "+triplet.dstId)
-      val tuple=(triplet.srcAttr,triplet.dstAttr)
-
-      println(triplet.dstId+": "+stringOf(triplet.dstAttr))
-      tuple match {
-        case (srcAttr:UserPreferences, dstAttr:(VertexId,UserCluster ))=> {
-
-          var str=""//triplet.srcId+":"
-          println( dstAttr)
-          dstAttr._2.friendsPreferences foreach {case (friendID, friendMap) =>{
-            str+=friendID+":"
-            println("Friend: "+friendID)
-            friendMap foreach{case (locationId, preference) =>{
-              str+=locationId+","+preference+","
-            }
-
-            }
-            if (str.endsWith(","))
-              str=str.slice(0,str.length()-1)
-            str+="&"
-          }}
-          if (str.endsWith("&"))
-            str=str.slice(0,str.length()-1)
-
-          println("Ida "+triplet.srcId+" --   "+triplet.dstId)
-          println(triplet.dstId+"====>  "+str)
-          Iterator((triplet.srcId,str))
-        }
-        case _=>Iterator.empty
-      }
-    }
-
-    println("------------------")
-    val userWithClusterPref: Graph[Object, String]= cluster.pregel("",maxIterations = 1)(
-      setMsgInUser, // Vertex Program
-      alternate,// vertex received msg
-      mergeMsg2// Merge Message
-    )
-    println("------------------")
-
-
-    printGraph(userWithClusterPref)
-    val userRecommendationsCluster=makeRecomendations(userWithClusterPref)
-    val finalNetworkCluster=Graph(userRecommendationsCluster,userWithClusterPref.edges)
-    printGraph(finalNetworkCluster)
+//    println("----Analysis with clusters-----")
+//    val verticesUsersClusters = Array[ ( VertexId, Object) ] (
+//      ( 100L,UserCluster(new HashMap[Long, HashMap[Long, Double]]())) ,
+//      ( 200L, UserCluster( new HashMap[Long, HashMap[Long, Double]]())) ,
+//    )
+//    val nodesUC= sc.parallelize(verticesUsersClusters)
+//
+//    val linksUsersCluster = Array(
+//      Edge( 1L, 100L,"" ),
+//      Edge( 4L, 100L ,""),
+//      Edge( 5L, 100L ,""),
+//      Edge( 2L, 200L ,""),
+//      Edge( 3L, 200L ,""),
+//    )
+//    val edgesUC= sc.parallelize(linksUsersCluster)
+//
+//    //Create Graph
+//    val graphUC= Graph(userMapsProperty.vertices.union(nodesUC),userMapsProperty.edges.union(edgesUC) )
+//
+//    graphUC.vertices.foreach(println)
+//    graphUC.edges.foreach(println)
+//
+//
+//    def setMsgInClusterOrUser(vertexId: VertexId, value: Object, message: String):Object = {
+//      println("------------ID:"+vertexId+"   "+stringOf(value) +"   Message:"+message)
+//      if (message != "") {
+//        println(vertexId.toString+" ===  "+message)
+//        value match {
+//          case value: UserCluster => {
+//
+//            for (i <- message.split("&")) {
+//              val data = i.split(":")
+//              var friendMap = new HashMap[Long, Double]()
+//              val numbers = data(1).split(",")
+//              for (j: Int <- 0 until (numbers.length / 2)) {
+//                val index = numbers(j * 2)
+//                val freq = numbers(j * 2 + 1)
+//                friendMap(index.toLong) = freq.toDouble
+//              }
+//              value.friendsPreferences(data(0).toLong) = friendMap
+//
+//            }
+//            value.asInstanceOf[Object]
+//          }
+//        }
+//      } else { //Initial Message used for Transformation
+//          print("Se fue por aqui")
+//          value match {
+//            case value: HashMap[Long, Double] => {
+//              val mapa = value.asInstanceOf[scala.collection.mutable.HashMap[Long, Double]]
+//              var user = UserPreferences(mapa, new HashMap[Long, HashMap[Long, Double]]())
+//              println("Attributo Transformado")
+//              user
+//            }
+//            case _ => value
+//          }
+//        }
+//    }
+//    def sendMsgToCluster(triplet: EdgeTriplet[Object,String] ): Iterator[(VertexId,String)] = {
+//      //println(triplet.srcId+" --"+triplet.dstId)
+//      val tuple=(triplet.srcAttr,triplet.dstAttr)
+//
+//      tuple match {
+//        case (srcAttr: UserPreferences, dstAttr:UserCluster)=> {
+//          var str=triplet.srcId+":"
+//          srcAttr.preferences foreach {case (key, value) => str+=key+","+value+","}
+//          if (str.endsWith(","))
+//            str=str.slice(0,str.length()-1)
+//          println("Ida "+triplet.srcId+" --"+triplet.dstId)
+//          println(triplet.dstId+"====>  "+str)
+//          Iterator((triplet.dstId,str))
+//          //Iterator((triplet.srcId,str))
+//        }
+//        case _=>Iterator.empty
+//      }
+//    }
+//
+//    val cluster: Graph[Object, String]= graphUC.pregel("",maxIterations = 1,EdgeDirection.Out)(
+//      setMsgInClusterOrUser, // Vertex Program
+//      sendMsgToCluster,// vertex received msg
+//      mergeMsg2// Merge Message
+//    )
+//
+//    printGraph(cluster)
+//    def setMsgInUser(vertexId: VertexId, value: Object, message: String):Object = {
+//      println("------------ID:"+vertexId+"   "+stringOf(value) +"   Message:"+message)
+//      if (message != "") {
+//        println(vertexId.toString+" ===  "+message)
+//        value match {
+//          case value: UserPreferences=> {
+//
+//            for (i <- message.split("&")) {
+//              val data = i.split(":")
+//              println(stringOf(data))
+//              var friendMap = new HashMap[Long, Double]()
+//              val numbers = data(1).split(",")
+//              for (j: Int <- 0 until (numbers.length / 2)) {
+//                val index = numbers(j * 2)
+//                val freq = numbers(j * 2 + 1)
+//                friendMap(index.toLong) = freq.toDouble
+//              }
+//              if(vertexId.toLong!=data(0).toLong)
+//                value.friendsPreferences(data(0).toLong) = friendMap
+//
+//            }
+//            value.asInstanceOf[Object]
+//          }
+//        }
+//      }
+//      value match {
+//        case value: UserCluster=> {
+//          (vertexId,value)
+//        }
+//        case _ => value
+//      }
+//
+//    }
+//
+//
+//
+//    def alternate(triplet: EdgeTriplet[Object,String] ): Iterator[(VertexId,String)] = {
+//      println(triplet.srcId+" -- "+triplet.dstId)
+//      val tuple=(triplet.srcAttr,triplet.dstAttr)
+//
+//      println(triplet.dstId+": "+stringOf(triplet.dstAttr))
+//      tuple match {
+//        case (srcAttr:UserPreferences, dstAttr:(VertexId,UserCluster ))=> {
+//
+//          var str=""//triplet.srcId+":"
+//          println( dstAttr)
+//          dstAttr._2.friendsPreferences foreach {case (friendID, friendMap) =>{
+//            str+=friendID+":"
+//            println("Friend: "+friendID)
+//            friendMap foreach{case (locationId, preference) =>{
+//              str+=locationId+","+preference+","
+//            }
+//
+//            }
+//            if (str.endsWith(","))
+//              str=str.slice(0,str.length()-1)
+//            str+="&"
+//          }}
+//          if (str.endsWith("&"))
+//            str=str.slice(0,str.length()-1)
+//
+//          println("Ida "+triplet.srcId+" --   "+triplet.dstId)
+//          println(triplet.dstId+"====>  "+str)
+//          Iterator((triplet.srcId,str))
+//        }
+//        case _=>Iterator.empty
+//      }
+//    }
+//
+//    println("------------------")
+//    val userWithClusterPref: Graph[Object, String]= cluster.pregel("",maxIterations = 1)(
+//      setMsgInUser, // Vertex Program
+//      alternate,// vertex received msg
+//      mergeMsg2// Merge Message
+//    )
+//    println("------------------")
+//
+//
+//    printGraph(userWithClusterPref)
+//    val userRecommendationsCluster=makeRecomendations(userWithClusterPref)
+//    val finalNetworkCluster=Graph(userRecommendationsCluster,userWithClusterPref.edges)
+//    printGraph(finalNetworkCluster)
 
 //    graphUC.outerJoinVertices(userMapsProperty.vertices){
 //            (id, origValue, msgValue ) => origValue match {
